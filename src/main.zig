@@ -22,8 +22,8 @@ export fn pluginInit(ret: *hyprland.PLUGIN_DESCRIPTION_INFO, handle: hyprland.HA
     if(c.SDL_Init(c.SDL_INIT_JOYSTICK)!=0)
         @panic("Can't init SDL");
 
-    ret.name.@"(char*)"("MyPlugin");
-    ret.description.@"(char*)"("An amazing plugin that is going to change the world!");
+    ret.name.@"(char*)"("Hypr-GamepadStayAwake");
+    ret.description.@"(char*)"("A plugin that resets the idle timer on controller button events");
     ret.author.@"(char*)"("Mecso");
     ret.version.@"(char*)"("1.0");
 
