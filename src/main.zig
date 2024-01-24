@@ -74,6 +74,7 @@ fn get_address(name: [:0]const u8, handle: hyprland.HANDLE) ?*anyopaque{
 
     var fns: cpp.vector(hyprland.SFunctionMatch) = undefined;
     hyprland.findFunctionsByName(&fns, handle, &identifier);
+    defer for(fns.toArrayList().items)|*e| e.@"~"();
     defer std.c.free(fns.start);
 
     var fn_info: *hyprland.SFunctionMatch = fns.get(0) orelse {

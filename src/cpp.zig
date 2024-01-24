@@ -1,23 +1,37 @@
-pub fn vector(comptime T: type) type{
-    return extern struct {
-        start: ?[*]T,
-        end: ?[*]T,
-        storage_end: ?[*]T,
+const std=@import("std");
 
-        pub fn len(self: *const @This()) usize{
+pub fn vector(comptime T: type) type {
+    return extern struct {
+        start: [*]T,
+        end: [*]T,
+        storage_end: [*]T,
+
+        pub fn len(self: *const @This()) usize {
             return (@intFromPtr(self.end) - @intFromPtr(self.start)) / @sizeOf(T);
         }
 
-        pub fn get(self: *const @This(), index: usize) ?*T{
-            if(index>=self.len()) return null;
-            return &self.start.?[index];
+        pub fn capacity(self: *const @This()) usize {
+            return (@intFromPtr(self.storage_end) - @intFromPtr(self.start)) / @sizeOf(T);
+        }
+
+
+        pub fn get(self: *const @This(), index: usize) ?*T {
+            if(index >= self.len()) return null;
+            return &self.start[index];
+        }
+
+        pub fn toArrayList(self: *@This()) std.ArrayList(T) {
+            return .{
+                .allocator=std.heap.c_allocator,
+                .items=self.start[0..@call(.always_inline, len, .{self})],
+                .capacity=@call(.always_inline, capacity, .{self})};
         }
     };
 }
 pub const string = extern struct{
     c_str: [*:0]u8,
     length: usize,
-    _:[16]u8,
+    _: [16]u8,
 
     pub fn to_slice(self: *@This()) callconv(.Inline) [:0]u8{
         return @ptrCast(self.c_str[0..self.length]);
@@ -29,7 +43,7 @@ pub const string = extern struct{
         @"__~"(this);
     }
 
-
+    
 
     const @"__~" = @extern(
         *fn(?*@This()) callconv(.C) void,

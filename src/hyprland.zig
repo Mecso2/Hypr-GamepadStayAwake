@@ -7,6 +7,11 @@ pub const SFunctionMatch= struct {
     address: ?*anyopaque= null,
     signature: cpp.string,
     demangled: cpp.string,
+
+    pub fn @"~"(self: *@This()) void {
+        self.signature.@"~"();
+        self.demangled.@"~"();
+    }
 };
 pub const PLUGIN_DESCRIPTION_INFO=extern struct{
     name: cpp.string,
