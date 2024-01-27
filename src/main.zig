@@ -29,12 +29,12 @@ export fn pluginInit(ret: *hyprland.PLUGIN_DESCRIPTION_INFO, handle: hyprland.HA
 
 
     //pointer to the unique_ptr to the class, resolve once to get the pointer to the instance
-    g_pCompositor=@as(**hyprland.CCompositor, @alignCast(@ptrCast(get_address("g_pCompositor", handle) orelse return ret))).*;
+    g_pCompositor=@as(**hyprland.CCompositor, @alignCast(@ptrCast(getAddress("g_pCompositor", handle) orelse return ret))).*;
     stdout.writeAll(g_pCompositor.m_szCurrentSplash.to_slice()) catch {};
     
     
     
-    thread=std.Thread.spawn(.{}, threadfn, .{}) catch @panic("lol");
+    thread=std.Thread.spawn(.{}, threadFn, .{}) catch @panic("lol");
     
     
 
@@ -50,7 +50,7 @@ export fn pluginExit() void{
     c.SDL_Quit();
 }
 
-fn threadfn() void{
+fn threadFn() void{
     var event: c.SDL_Event=undefined;
     while(true){
         if(c.SDL_PollEvent(&event)==0) continue;
@@ -67,19 +67,22 @@ fn threadfn() void{
 
 
 
-fn get_address(name: [:0]const u8, handle: hyprland.HANDLE) ?*anyopaque{
+fn getAddress(name: [:0]const u8, handle: hyprland.HANDLE) ?*anyopaque{
     var identifier: cpp.string = undefined;
     identifier.@"(char*)"(name);
     defer identifier.@"~"();
 
-    var fns: cpp.vector(hyprland.SFunctionMatch) = undefined;
-    hyprland.findFunctionsByName(&fns, handle, &identifier);
-    //defer for(fns.toArrayList().items)|*e| e.@"~"();
-    defer std.c.free(fns.start);
+    var fns: std.ArrayList(hyprland.SFunctionMatch) = q:{
+        var fns: cpp.vector(hyprland.SFunctionMatch) = undefined;
+        hyprland.findFunctionsByName(&fns, handle, &identifier);
+        break :q fns.toArrayList();
+    };
+    defer fns.deinit();
+    defer for(fns.items)|*e| e.@"~"();
 
-    var fn_info: *hyprland.SFunctionMatch = fns.get(0) orelse {
+    if(fns.items.len==0){
         stderr.print("Can't find function named {s}\n", .{name}) catch {};
         return null;
-    };
-    return fn_info.address;
+    }
+    return fns.items[0].address;
 }
