@@ -42,6 +42,8 @@ export fn pluginInit(ret: *hyprland.PLUGIN_DESCRIPTION_INFO, handle: hyprland.HA
 }
 
 export fn pluginExit() void{
+    go=false;
+    thread.join();
     var iter=joys.valueIterator();
     while(iter.next())|v|{
         c.SDL_JoystickClose(v.*);
@@ -50,9 +52,10 @@ export fn pluginExit() void{
     c.SDL_Quit();
 }
 
+var go: bool=true;
 fn threadFn() void{
     var event: c.SDL_Event=undefined;
-    while(true){
+    while(go){
         if(c.SDL_PollEvent(&event)==0) continue;
         
         if(event.type==c.SDL_JOYDEVICEREMOVED){
