@@ -36,8 +36,8 @@ export fn pluginInit(ret: *hyprland.PLUGIN_DESCRIPTION_INFO, handle: hyprland.HA
     
     thread=std.Thread.spawn(.{}, threadFn, .{}) catch @panic("lol");
     
-    
 
+    
     return ret;
 }
 
@@ -73,7 +73,7 @@ fn threadFn() void{
 fn getAddress(name: [:0]const u8, handle: hyprland.HANDLE) ?*anyopaque{
     var identifier: cpp.string = undefined;
     identifier.constrFromSlice(name);
-    defer identifier.@"~"();
+    defer identifier.deinit();
 
     var fns: std.ArrayList(hyprland.SFunctionMatch) = q:{
         var fns: cpp.vector(hyprland.SFunctionMatch) = undefined;
@@ -81,7 +81,7 @@ fn getAddress(name: [:0]const u8, handle: hyprland.HANDLE) ?*anyopaque{
         break :q fns.toArrayList();
     };
     defer fns.deinit();
-    defer for(fns.items)|*e| e.@"~"();
+    defer for(fns.items)|*e| e.deinit();
 
     if(fns.items.len==0){
         stderr.print("Can't find function named {s}\n", .{name}) catch {};

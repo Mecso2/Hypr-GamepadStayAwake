@@ -14,7 +14,6 @@ pub fn vector(comptime T: type) type {
             return (@intFromPtr(self.storage_end) - @intFromPtr(self.start)) / @sizeOf(T);
         }
 
-
         pub fn get(self: *const @This(), index: usize) ?*T {
             if(index >= self.len()) return null;
             return &self.start[index];
@@ -25,6 +24,10 @@ pub fn vector(comptime T: type) type {
                 .allocator=std.heap.c_allocator,
                 .items=self.start[0..@call(.always_inline, len, .{self})],
                 .capacity=@call(.always_inline, capacity, .{self})};
+        }
+
+        pub fn deinit(self: *@This()) void{
+            std.c.free(self.start);
         }
     };
 }
@@ -51,7 +54,7 @@ pub const string = extern struct{
         self.un.capacity=slice.len;
     }
 
-    pub fn @"~"(self: *@This()) void{
+    pub fn deinit(self: *@This()) void{
         if(self.c_str != &self.un.local_buffer)
             std.c.free(self.c_str);
     }

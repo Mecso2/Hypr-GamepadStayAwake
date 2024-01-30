@@ -8,9 +8,9 @@ pub const SFunctionMatch= struct {
     signature: cpp.string,
     demangled: cpp.string,
 
-    pub fn @"~"(self: *@This()) void {
-        self.signature.@"~"();
-        self.demangled.@"~"();
+    pub fn deinit(self: *@This()) void {
+        self.signature.deinit();
+        self.demangled.deinit();
     }
 };
 pub const PLUGIN_DESCRIPTION_INFO=extern struct{
@@ -21,10 +21,16 @@ pub const PLUGIN_DESCRIPTION_INFO=extern struct{
 };
 pub const CFunctionHook = extern struct{
     pub fn hook(self: *@This()) callconv(.Inline) bool{
-        return hook_extern(self);
+        return @extern(
+            *fn(*@This()) callconv(.C) bool,
+            .{.name="_ZN13CFunctionHook4hookEv"}
+        )(self);
     }
     pub fn unhook(self: *@This()) callconv(.Inline) bool{
-        return unhook2(self);
+        return @extern(
+            *fn(*@This()) callconv(.C) bool,
+            .{.name="_ZN13CFunctionHook6unhookEv"}
+        )(self);
     }
 
     m_pOriginal: ?*anyopaque = null,
@@ -50,16 +56,6 @@ pub const CFunctionHook = extern struct{
     const SAssembly = extern struct {
         bytes: cpp.vector(u8)
     };
-
-
-    const hook_extern=@extern(
-        *fn(?*@This()) callconv(.C) bool,
-        .{.name="_ZN13CFunctionHook4hookEv"}
-    );
-    const unhook2=@extern(
-        *fn(?*@This()) callconv(.C) bool,
-        .{.name="_ZN13CFunctionHook6unhookEv"}
-    );
 };
 pub const CKeybindManager=extern struct{
     _: [320]u8,
