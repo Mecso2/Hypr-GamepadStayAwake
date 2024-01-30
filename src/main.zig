@@ -12,7 +12,7 @@ var joys: std.AutoHashMap(i32, *c.SDL_Joystick)=undefined;
 var thread: std.Thread=undefined;
 
 export fn pluginAPIVersion(ret: *cpp.string) ?*cpp.string{
-    ret.@"(char*)"(hyprland.API_VERSION);
+    ret.constrFromSlice(hyprland.API_VERSION);
     return ret;
 }
 
@@ -22,15 +22,15 @@ export fn pluginInit(ret: *hyprland.PLUGIN_DESCRIPTION_INFO, handle: hyprland.HA
     if(c.SDL_Init(c.SDL_INIT_JOYSTICK)!=0)
         @panic("Can't init SDL");
 
-    ret.name.@"(char*)"("Hypr-GamepadStayAwake");
-    ret.description.@"(char*)"("A plugin that resets the idle timer on controller button events");
-    ret.author.@"(char*)"("Mecso");
-    ret.version.@"(char*)"("1.0");
+    ret.name.constrFromSlice("Hypr-GamepadStayAwake");
+    ret.description.constrFromSlice("A plugin that resets the idle timer on controller button events");
+    ret.author.constrFromSlice("Mecso");
+    ret.version.constrFromSlice("1.0");
 
 
     //pointer to the unique_ptr to the class, resolve once to get the pointer to the instance
     g_pCompositor=@as(**hyprland.CCompositor, @alignCast(@ptrCast(getAddress("g_pCompositor", handle) orelse return ret))).*;
-    stdout.writeAll(g_pCompositor.m_szCurrentSplash.to_slice()) catch {};
+    stdout.writeAll(g_pCompositor.m_szCurrentSplash.toSlice()) catch {};
     
     
     
@@ -72,7 +72,7 @@ fn threadFn() void{
 
 fn getAddress(name: [:0]const u8, handle: hyprland.HANDLE) ?*anyopaque{
     var identifier: cpp.string = undefined;
-    identifier.@"(char*)"(name);
+    identifier.constrFromSlice(name);
     defer identifier.@"~"();
 
     var fns: std.ArrayList(hyprland.SFunctionMatch) = q:{

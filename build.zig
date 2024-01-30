@@ -26,19 +26,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .link_libc = true
     });
-    {
-        const cache_dir:[]const u8 = b.cache_root.path orelse ".";
-        {
-            const obj_path=std.fmt.allocPrintZ(b.allocator, "{s}/a.o", .{cache_dir}) catch @panic("OOM");
-            defer b.allocator.free(obj_path);
-            lib.addObjectFile(.{.path=obj_path});
-        }
-        {
-            const obj_path=std.fmt.allocPrintZ(b.allocator, "-o{s}/a.o", .{cache_dir}) catch @panic("OOM");
-            defer b.allocator.free(obj_path);
-            lib.step.dependOn(&b.addSystemCommand(&[_][]const u8{"/bin/g++", "src/a.cpp", obj_path, "-c", "-O3"}).step);
-        }
-    }
     lib.linkSystemLibrary("SDL2");
     
     // This declares intent for the library to be installed into the standard
