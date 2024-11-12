@@ -15,7 +15,7 @@ zig build -Drelease -DHYPR_COMMIT_HASH=`hyprctl -j version | jq -r .commit`
 ```
 
 ## Loading
-### Installed hyprpm
+### Installed with hyprpm
 ```
 hyprpm enable Hypr-GamepadStayAwake
 ```
