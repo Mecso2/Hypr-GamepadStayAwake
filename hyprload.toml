@@ -6,5 +6,5 @@ author = "Mecso"
 [Hypr-GamepadStayAwake.build]
 output = "zig-out/lib/libhypr-gamepadstayawake.so"
 steps = [
-    "zig build -Drelease -DHYPR_COMMIT_HASH=`hyprctl -j version | jq -r .commit",
+    "zig build -Drelease -DHYPR_COMMIT_HASH=`hyprctl -j version | jq -r .commit`",
 ]

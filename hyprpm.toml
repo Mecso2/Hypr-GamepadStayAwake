@@ -4,5 +4,5 @@ version = "1.1"
 authors = ["Mecso"]
 output = "zig-out/lib/libhypr-gamepadstayawake.so"
 build = [
-    "zig build -Drelease -DHYPR_COMMIT_HASH=`hyprctl -j version | jq -r .commit",
+    "zig build -Drelease -DHYPR_COMMIT_HASH=`hyprctl -j version | jq -r .commit`",
 ]
