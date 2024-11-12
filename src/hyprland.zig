@@ -1,34 +1,45 @@
 const cpp=@import("cpp.zig");
+const config=@import("config");
+
 pub const API_VERSION="0.1";
 
 
 pub const HANDLE = ?*opaque {};
-pub const SFunctionMatch= struct {
-    address: ?*anyopaque= null,
-    signature: cpp.string,
-    demangled: cpp.string,
-
-    pub fn deinit(self: *@This()) void {
-        self.signature.deinit();
-        self.demangled.deinit();
-    }
-};
-pub const PLUGIN_DESCRIPTION_INFO=extern struct{
+pub const PLUGIN_DESCRIPTION_INFO = extern struct{
     name: cpp.string,
     description: cpp.string,
     author: cpp.string,
     version: cpp.string
 };
+
+
+pub const GIT_COMMIT_HASH: []const u8=config.HYPR_COMMIT_HASH;
+pub const getApiHash = @extern(*const fn() callconv(.C) [*:0]const u8, .{.name="__hyprland_api_get_hash"});
+
+
+pub const CColor = extern struct{
+    r: f32,
+    g: f32,
+    b: f32,
+    a: f32
+};
+pub extern fn addNotification(handle: HANDLE, text: *const cpp.string, color: *const CColor , timeMs: f32) bool;
+
+
+pub extern fn findFunctionsByName(handle: HANDLE, *const cpp.string) cpp.vector(SFunctionMatch);
+pub extern fn createFunctionHook(handle: HANDLE, src: *const anyopaque, dst: *const anyopaque) ?*CFunctionHook;
+pub extern fn removeFunctionHook(handle: HANDLE, hook: *CFunctionHook) bool;
+
 pub const CFunctionHook = extern struct{
-    pub fn hook(self: *@This()) callconv(.Inline) bool{
+    pub inline fn hook(self: *@This()) bool{
         return @extern(
-            *fn(*@This()) callconv(.C) bool,
+            *const fn(*@This()) callconv(.C) bool,
             .{.name="_ZN13CFunctionHook4hookEv"}
         )(self);
     }
-    pub fn unhook(self: *@This()) callconv(.Inline) bool{
+    pub inline fn unhook(self: *@This()) bool{
         return @extern(
-            *fn(*@This()) callconv(.C) bool,
+            *const fn(*@This()) callconv(.C) bool,
             .{.name="_ZN13CFunctionHook6unhookEv"}
         )(self);
     }
@@ -57,47 +68,21 @@ pub const CFunctionHook = extern struct{
         bytes: cpp.vector(u8)
     };
 };
-pub const CKeybindManager=extern struct{
-    _: [320]u8,
-    m_pXKBTranslationState: ?*xkb_state
-};
-pub const SSeat=extern struct{
-    seat: *wlr_seat,
-    _: [16]u8
-};
-pub const CCompositor = extern struct{
-    _: [104]u8,
-    m_sWLRIdleNotifier: *wlr_idle_notifier_v1,
-    __: [304]u8,
-    m_szCurrentSplash: cpp.string,
-    ___: [296]u8,
-    m_sSeat: SSeat,
-    ____: [64]u8,
-};
-pub const findFunctionsByName = @extern(*fn(?*cpp.vector(SFunctionMatch), HANDLE, ?*const cpp.string) callconv(.C) void, 
-    .{.name="findFunctionsByName"}
-);
-pub const createFunctionHook = @extern(*fn(HANDLE, ?*const anyopaque, ?*const anyopaque) callconv(.C) ?*CFunctionHook, 
-    .{.name="createFunctionHook"}
-);
+pub const SFunctionMatch= struct {
+    address: ?*anyopaque= null,
+    signature: cpp.string,
+    demangled: cpp.string,
 
-
-pub const wlr_keyboard_key_event = extern struct{
-    time_msec: u32,
-    keycode: u32,
-    update_state: bool,
-    state: wl_keyboard_key_state
-};
-pub const wl_keyboard_key_state = enum(u32){
-    released,
-    pressed
+    pub fn deinit(self: *@This()) void {
+        self.signature.deinit();
+        self.demangled.deinit();
+    }
 };
 
-const wlr_idle_notifier_v1 = opaque{};
-const wlr_seat = opaque {};
-pub extern fn wlr_idle_notifier_v1_notify_activity(*wlr_idle_notifier_v1, *wlr_seat) void;
 
 
-pub const xkb_state = opaque{};
-pub extern fn xkb_state_key_get_one_sym(*xkb_state, keycode: u32) u32;
-pub extern fn xkb_keysym_to_utf32(u32) u32;
+pub const CIdleNotifyProtocol=opaque{
+    pub inline fn onActivity(self: *@This()) void{
+        return @extern(*const fn(*@This()) callconv(.C) void, .{.name="_ZN19CIdleNotifyProtocol10onActivityEv"})(self);
+    }
+};

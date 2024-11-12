@@ -1,10 +1,10 @@
 [Hypr-GamepadStayAwake]
-description="A plugin that resets the idle timer on controller button events"
-version = "1.0"
+description = "A plugin that resets the idle timer on controller button events"
+version = "1.1"
 author = "Mecso"
 
 [Hypr-GamepadStayAwake.build]
 output = "zig-out/lib/libhypr-gamepadstayawake.so"
 steps = [
-    "zig build -Drelease"
+    "zig build -Drelease -DHYPR_COMMIT_HASH=`hyprctl -j version | jq -r .commit",
 ]

@@ -6,44 +6,75 @@ const cpp=@import("cpp.zig");
 const hyprland=@import("hyprland.zig");
 const c=@cImport(@cInclude("SDL2/SDL.h"));
 
-var g_pCompositor: *hyprland.CCompositor = undefined;
 var PHANDLE: hyprland.HANDLE=null;
-var joys: std.AutoHashMap(i32, *c.SDL_Joystick)=undefined;
-var thread: std.Thread=undefined;
+var joys=std.AutoHashMap(i32, *c.SDL_Joystick).init(std.heap.c_allocator);
+var hook: ?*hyprland.CFunctionHook=null;
+var idle: *hyprland.CIdleNotifyProtocol=undefined;
 
 export fn pluginAPIVersion(ret: *cpp.string) ?*cpp.string{
     ret.constrFromSlice(hyprland.API_VERSION);
     return ret;
 }
-
 export fn pluginInit(ret: *hyprland.PLUGIN_DESCRIPTION_INFO, handle: hyprland.HANDLE) *hyprland.PLUGIN_DESCRIPTION_INFO{
-    PHANDLE = handle;
-    joys=std.AutoHashMap(i32, *c.SDL_Joystick).init(std.heap.c_allocator);
-    if(c.SDL_Init(c.SDL_INIT_JOYSTICK)!=0)
-        @panic("Can't init SDL");
+    idle=@extern(**hyprland.CIdleNotifyProtocol, .{.name="_ZN10NProtocols4idleE"}).*;
 
-    ret.name.constrFromSlice("Hypr-GamepadStayAwake");
+    PHANDLE = handle;
     ret.description.constrFromSlice("A plugin that resets the idle timer on controller button events");
     ret.author.constrFromSlice("Mecso");
-    ret.version.constrFromSlice("1.0");
+    ret.version.constrFromSlice("1.1");
 
 
-    //pointer to the unique_ptr to the class, resolve once to get the pointer to the instance
-    g_pCompositor=@as(**hyprland.CCompositor, @alignCast(@ptrCast(getAddress("g_pCompositor", handle) orelse return ret))).*;
-    stdout.writeAll(g_pCompositor.m_szCurrentSplash.toSlice()) catch {};
-    
-    
-    
-    thread=std.Thread.spawn(.{}, threadFn, .{}) catch @panic("lol");
-    
+    if(!std.mem.eql(u8, std.mem.span(hyprland.getApiHash()), hyprland.GIT_COMMIT_HASH)){
+        notify(
+            handle,
+            .{.r=1, .g=1, .b=0, .a=1},
+            8000,
+            "Hypr-GamepadStayAwake version mismatch, expected Hyprland with commit hash: `{s}`, but got one with `{s}`",
+            .{hyprland.GIT_COMMIT_HASH, hyprland.getApiHash()}
+        ) catch @panic("OOM");
 
-    
+        ret.name.constrFromSlice("Hypr-GamepadStayAwake (VERSION MISMATCH)");
+        return ret;
+    }
+    if(c.SDL_Init(c.SDL_INIT_JOYSTICK)!=0){
+        notify(
+            handle,
+            .{.r=1, .g=1, .b=0, .a=1},
+            8000,
+            "Hypr-GamepadStayAwake failed to initailze SDL: `{s}`",
+            .{c.SDL_GetError()}
+        ) catch @panic("OOM");
+
+
+        ret.name.constrFromSlice("Hypr-GamepadStayAwake (Couldn't init SDL)");
+        return ret;
+    }
+
+    hook=hyprland.createFunctionHook(
+        handle,
+        @extern(*const anyopaque, .{.name="_ZN14CConfigManager4tickEv"}),
+    &tick).?;
+    if(!hook.?.hook()){
+        notify(
+            handle,
+            .{.r=1, .g=1, .b=0, .a=1},
+            8000,
+            "Hypr-GamepadStayAwake failed to hook tick event",
+            .{}
+        ) catch @panic("OOM");
+
+
+        ret.name.constrFromSlice("Hypr-GamepadStayAwake (Failed to create hook)");
+        return ret;
+    }
+
+    ret.name.constrFromSlice("Hypr-GamepadStayAwake");
     return ret;
 }
-
 export fn pluginExit() void{
-    go=false;
-    thread.join();
+    if(hook)|h|{
+        _=h.unhook();
+    }
     var iter=joys.valueIterator();
     while(iter.next())|v|{
         c.SDL_JoystickClose(v.*);
@@ -52,40 +83,29 @@ export fn pluginExit() void{
     c.SDL_Quit();
 }
 
-var go: bool=true;
-fn threadFn() void{
+fn tick(self: ?*anyopaque) callconv(.C) void{
     var event: c.SDL_Event=undefined;
-    while(go){
-        if(c.SDL_PollEvent(&event)==0) continue;
-        
+    while(c.SDL_PollEvent(&event)!=0){
         if(event.type==c.SDL_JOYDEVICEREMOVED){
             c.SDL_JoystickClose(joys.fetchRemove(event.jdevice.which).?.value);
         } else if(event.type==c.SDL_JOYDEVICEADDED){
             joys.put(event.jdevice.which, c.SDL_JoystickOpen(event.jdevice.which).?) catch @panic("map");
         } else if(event.type==c.SDL_JOYBUTTONUP or event.type==c.SDL_JOYBUTTONDOWN){
-            hyprland.wlr_idle_notifier_v1_notify_activity(g_pCompositor.m_sWLRIdleNotifier, g_pCompositor.m_sSeat.seat);
+            idle.onActivity();
         }
     }
+
+    @as(*const fn(?*anyopaque) void, @ptrCast(hook.?.m_pOriginal))(self);
 }
 
 
+inline fn notify(handle: hyprland.HANDLE, color: hyprland.CColor, timeout: f32, fmt: []const u8, args: anytype) !void{
+    var text=cpp.string.fromOwnedSlice(try std.fmt.allocPrintZ(
+        std.heap.c_allocator,
+        fmt,
+        args
+    ));
+    defer text.deinit();
 
-fn getAddress(name: [:0]const u8, handle: hyprland.HANDLE) ?*anyopaque{
-    var identifier: cpp.string = undefined;
-    identifier.constrFromSlice(name);
-    defer identifier.deinit();
-
-    var fns: std.ArrayList(hyprland.SFunctionMatch) = q:{
-        var fns: cpp.vector(hyprland.SFunctionMatch) = undefined;
-        hyprland.findFunctionsByName(&fns, handle, &identifier);
-        break :q fns.toArrayList();
-    };
-    defer fns.deinit();
-    defer for(fns.items)|*e| e.deinit();
-
-    if(fns.items.len==0){
-        stderr.print("Can't find function named {s}\n", .{name}) catch {};
-        return null;
-    }
-    return fns.items[0].address;
+    _=hyprland.addNotification(handle, &text, &color, timeout);
 }
