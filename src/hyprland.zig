@@ -17,14 +17,8 @@ pub const GIT_COMMIT_HASH: []const u8=config.HYPR_COMMIT_HASH;
 pub const getApiHash = @extern(*const fn() callconv(.C) [*:0]const u8, .{.name="__hyprland_api_get_hash"});
 
 
-pub const CColor = extern struct{
-    r: f32,
-    g: f32,
-    b: f32,
-    a: f32
-};
-pub extern fn addNotification(handle: HANDLE, text: *const cpp.string, color: *const CColor , timeMs: f32) bool;
-
+pub const CColor = extern struct { r: f64, g: f64, b: f64, a: f64 };
+pub extern fn addNotification(handle: HANDLE, text: *const cpp.string, color: *const CColor, timeMs: f32) bool;
 
 pub extern fn findFunctionsByName(handle: HANDLE, *const cpp.string) cpp.vector(SFunctionMatch);
 pub extern fn createFunctionHook(handle: HANDLE, src: *const anyopaque, dst: *const anyopaque) ?*CFunctionHook;
