@@ -40,6 +40,7 @@ pub fn Vector(comptime T: type) type {
         }
     };
 }
+
 pub const String = extern struct {
     c_str: [*:0]u8,
     length: usize,
@@ -69,39 +70,45 @@ pub const String = extern struct {
             std.c.free(self.c_str);
     }
 };
+
 pub fn SharedPtr(comptime T: type) type {
     return extern struct { ptr: *T, ref_count: *extern struct { vtable: *anyopaque, use_count: std.atomic.Value(i32), weak_count: std.atomic.Value(i32) } };
 }
+
+// x86_64 g++ only
 fn MethodPtr(R: type, Args: []const type) type {
     var params: [1 + Args.len]std.builtin.Type.Fn.Param = undefined;
-    var fields: [1 + Args.len]std.builtin.Type.StructField = undefined;
     params[0] = .{ .type = *anyopaque, .is_generic = false, .is_noalias = false };
-    fields[0] = .{ .name = "0", .type = *anyopaque, .default_value_ptr = null, .is_comptime = false, .alignment = @alignOf(*anyopaque) };
-    for (params[1..], fields[1..], Args, 1..) |*p, *f, a, i| {
+    var ptr_args_tuple_fields: [1 + Args.len]std.builtin.Type.StructField = undefined;
+    ptr_args_tuple_fields[0] = .{ .name = "0", .type = *anyopaque, .default_value_ptr = null, .is_comptime = false, .alignment = @alignOf(*anyopaque) };
+    var args_tuple_fields: [Args.len]std.builtin.Type.StructField = undefined;
+    for (params[1..], ptr_args_tuple_fields[1..], args_tuple_fields[0..], Args, 0..) |*p, *f, *f2, a, i| {
         p.* = .{ .type = a, .is_generic = false, .is_noalias = false };
-        f.* = .{ .name = std.fmt.comptimePrint("{d}", .{i}), .type = a, .default_value_ptr = null, .is_comptime = false, .alignment = @alignOf(a) };
+        f.* = .{ .name = std.fmt.comptimePrint("{d}", .{i + 1}), .type = a, .default_value_ptr = null, .is_comptime = false, .alignment = @alignOf(a) };
+        f2.* = .{ .name = std.fmt.comptimePrint("{d}", .{i}), .type = a, .default_value_ptr = null, .is_comptime = false, .alignment = @alignOf(a) };
     }
 
-    const Nargs = @Type(std.builtin.Type{ .@"struct" = .{ .layout = .auto, .decls = &[_]std.builtin.Type.Declaration{}, .is_tuple = true, .fields = fields[0..] } });
-
+    const ArgsTuple = @Type(std.builtin.Type{ .@"struct" = .{ .layout = .auto, .decls = &[_]std.builtin.Type.Declaration{}, .is_tuple = true, .fields = args_tuple_fields[0..] } });
+    const PtrArgsTuple = @Type(std.builtin.Type{ .@"struct" = .{ .layout = .auto, .decls = &[_]std.builtin.Type.Declaration{}, .is_tuple = true, .fields = ptr_args_tuple_fields[0..] } });
     const Fn: type = @Type(.{ .@"fn" = .{ .calling_convention = .c, .is_generic = false, .is_var_args = false, .return_type = R, .params = params[0..] } });
+
     return extern struct {
         un: extern union { is_virtual: bool, vtable_offset_plus_1: usize, func: *const Fn },
         this_offet: isize,
-        fn call(self: @This(), this: *anyopaque, args: anytype) R {
-            var nargs: Nargs = undefined;
-            const nthis: *align(1) usize = @ptrFromInt(@intFromPtr(this) +% @as(usize, @bitCast(self.this_offet)));
-            nargs[0] = nthis;
+        fn call(self: @This(), this: *anyopaque, args: ArgsTuple) R {
+            var ptr_args: PtrArgsTuple = undefined;
+            const offset_this: *align(1) usize = @ptrFromInt(@intFromPtr(this) +% @as(usize, @bitCast(self.this_offet)));
+            ptr_args[0] = offset_this;
             inline for (0..Args.len) |i| {
-                nargs[1 + i] = @field(args, std.fmt.comptimePrint("{d}", .{i}));
+                ptr_args[1 + i] = @field(args, std.fmt.comptimePrint("{d}", .{i}));
             }
 
             if (self.un.is_virtual) {
-                const vtable_ptr: usize = nthis.*;
+                const vtable_ptr: usize = offset_this.*;
                 const func: *const Fn = @as(*const *const Fn, @ptrFromInt(vtable_ptr + self.un.vtable_offset_plus_1 - 1)).*;
-                return @call(.auto, func, nargs);
+                return @call(.auto, func, ptr_args);
             } else {
-                return @call(.auto, self.un.func, nargs);
+                return @call(.auto, self.un.func, ptr_args);
             }
         }
     };
