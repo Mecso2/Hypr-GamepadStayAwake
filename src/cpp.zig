@@ -8,7 +8,7 @@ const malloc_size =
         std.c._msize
     else {};
 
-pub fn vector(comptime T: type) type {
+pub fn Vector(comptime T: type) type {
     return extern struct {
         start: [*]T,
         end: [*]T,
@@ -40,7 +40,7 @@ pub fn vector(comptime T: type) type {
         }
     };
 }
-pub const string = extern struct {
+pub const String = extern struct {
     c_str: [*:0]u8,
     length: usize,
     un: extern union { capacity: usize, local_buffer: [15:0]u8 },
@@ -69,7 +69,7 @@ pub const string = extern struct {
             std.c.free(self.c_str);
     }
 };
-pub fn shared_ptr(comptime T: type) type {
+pub fn SharedPtr(comptime T: type) type {
     return extern struct { ptr: *T, ref_count: *extern struct { vtable: *anyopaque, use_count: std.atomic.Value(i32), weak_count: std.atomic.Value(i32) } };
 }
 fn MethodPtr(R: type, Args: []const type) type {

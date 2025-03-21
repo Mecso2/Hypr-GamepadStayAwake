@@ -11,7 +11,7 @@ var joys = std.AutoHashMap(i32, *c.SDL_Joystick).init(std.heap.c_allocator);
 var hook: ?*hyprland.CFunctionHook = null;
 var idle: *hyprland.CIdleNotifyProtocol = undefined;
 
-export fn pluginAPIVersion(ret: *cpp.string) ?*cpp.string {
+export fn pluginAPIVersion(ret: *cpp.String) ?*cpp.String {
     ret.constrFromSlice(hyprland.API_VERSION);
     return ret;
 }
@@ -75,7 +75,7 @@ fn tick(self: ?*anyopaque) callconv(.C) void {
 }
 
 inline fn notify(handle: hyprland.HANDLE, color: hyprland.CColor, timeout: f32, fmt: []const u8, args: anytype) !void {
-    var text = cpp.string.fromOwnedSlice(try std.fmt.allocPrintZ(std.heap.c_allocator, fmt, args));
+    var text = cpp.String.fromOwnedSlice(try std.fmt.allocPrintZ(std.heap.c_allocator, fmt, args));
     defer text.deinit();
 
     _ = hyprland.addNotification(handle, &text, &color, timeout);

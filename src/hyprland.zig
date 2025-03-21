@@ -4,15 +4,15 @@ const config = @import("config");
 pub const API_VERSION = "0.1";
 
 pub const HANDLE = ?*opaque {};
-pub const PLUGIN_DESCRIPTION_INFO = extern struct { name: cpp.string, description: cpp.string, author: cpp.string, version: cpp.string };
+pub const PLUGIN_DESCRIPTION_INFO = extern struct { name: cpp.String, description: cpp.String, author: cpp.String, version: cpp.String };
 
 pub const GIT_COMMIT_HASH: []const u8 = config.HYPR_COMMIT_HASH;
 pub const getApiHash = @extern(*const fn () callconv(.C) [*:0]const u8, .{ .name = "__hyprland_api_get_hash" });
 
 pub const CColor = extern struct { r: f64, g: f64, b: f64, a: f64 };
-pub extern fn addNotification(handle: HANDLE, text: *const cpp.string, color: *const CColor, timeMs: f32) bool;
+pub extern fn addNotification(handle: HANDLE, text: *const cpp.String, color: *const CColor, timeMs: f32) bool;
 
-pub extern fn findFunctionsByName(handle: HANDLE, *const cpp.string) cpp.vector(SFunctionMatch);
+pub extern fn findFunctionsByName(handle: HANDLE, *const cpp.String) cpp.Vector(SFunctionMatch);
 pub extern fn createFunctionHook(handle: HANDLE, src: *const anyopaque, dst: *const anyopaque) ?*CFunctionHook;
 pub extern fn removeFunctionHook(handle: HANDLE, hook: *CFunctionHook) bool;
 
@@ -37,14 +37,14 @@ pub const CFunctionHook = extern struct {
 
     m_pOriginalBytes: ?*anyopaque = null,
 
-    const SInstructionProbe = extern struct { len: usize = 0, assembly: cpp.string, insSizes: cpp.vector(usize) };
+    const SInstructionProbe = extern struct { len: usize = 0, assembly: cpp.String, insSizes: cpp.Vector(usize) };
 
-    const SAssembly = extern struct { bytes: cpp.vector(u8) };
+    const SAssembly = extern struct { bytes: cpp.Vector(u8) };
 };
 pub const SFunctionMatch = struct {
     address: ?*anyopaque = null,
-    signature: cpp.string,
-    demangled: cpp.string,
+    signature: cpp.String,
+    demangled: cpp.String,
 
     pub fn deinit(self: *@This()) void {
         self.signature.deinit();
