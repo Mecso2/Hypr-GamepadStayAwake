@@ -120,7 +120,7 @@ pub fn Function(R: type, Args: []const type) type {
 
 /// Builtin
 
-// x86_64 only
+// x86_64, aarch64 only
 pub fn MethodPtr(R: type, Args: []const type) type {
     var params: [1 + Args.len]std.builtin.Type.Fn.Param = undefined;
     params[0] = .{ .type = *anyopaque, .is_generic = false, .is_noalias = false };
@@ -137,25 +137,50 @@ pub fn MethodPtr(R: type, Args: []const type) type {
     const PtrArgsTuple = @Type(std.builtin.Type{ .@"struct" = .{ .layout = .auto, .decls = &[_]std.builtin.Type.Declaration{}, .is_tuple = true, .fields = ptr_args_tuple_fields[0..] } });
     const Fn: type = @Type(.{ .@"fn" = .{ .calling_convention = .c, .is_generic = false, .is_var_args = false, .return_type = R, .params = params[0..] } });
 
-    return extern struct {
-        un: extern union { is_virtual: bool, vtable_offset_plus_1: usize, func: *const Fn },
-        this_offet: isize,
-        pub fn call(self: @This(), this: *anyopaque, args: ArgsTuple) R {
-            var ptr_args: PtrArgsTuple = undefined;
-            const offset_this: *align(1) usize = @ptrFromInt(@intFromPtr(this) +% @as(usize, @bitCast(self.this_offet)));
-            ptr_args[0] = offset_this;
-            inline for (0..Args.len) |i| {
-                ptr_args[1 + i] = args[i];
-            }
+    return switch (@import("builtin").cpu.arch) {
+        .x86_64 => extern struct {
+            un: extern union { is_virtual: bool, vtable_offset_plus_1: usize, func: *const Fn },
+            this_offet: usize,
 
-            if (self.un.is_virtual) {
-                const vtable_ptr: usize = offset_this.*;
-                const func: *const Fn = @as(*const *const Fn, @ptrFromInt(vtable_ptr + self.un.vtable_offset_plus_1 - 1)).*;
-                return @call(.auto, func, ptr_args);
-            } else {
-                return @call(.auto, self.un.func, ptr_args);
+            pub fn call(self: @This(), this: *anyopaque, args: ArgsTuple) R {
+                var ptr_args: PtrArgsTuple = undefined;
+                const offset_this: *align(1) usize = @ptrFromInt(@intFromPtr(this) + self.this_offet);
+                ptr_args[0] = offset_this;
+                inline for (0..Args.len) |i| {
+                    ptr_args[1 + i] = args[i];
+                }
+
+                if (self.un.is_virtual) {
+                    const vtable_ptr: usize = offset_this.*;
+                    const func: *const Fn = @as(*const *const Fn, @ptrFromInt(vtable_ptr + self.un.vtable_offset_plus_1 - 1)).*;
+                    return @call(.auto, func, ptr_args);
+                } else {
+                    return @call(.auto, self.un.func, ptr_args);
+                }
             }
-        }
+        },
+        .aarch64 => extern struct {
+            un: extern union { vtable_offset: usize, func: *const Fn },
+            pa: packed struct(usize) { is_virtual: bool, this_offet: u63 },
+
+            pub fn call(self: @This(), this: *anyopaque, args: ArgsTuple) R {
+                var ptr_args: PtrArgsTuple = undefined;
+                const offset_this: *align(1) usize = @ptrFromInt(@intFromPtr(this) + self.pa.this_offet);
+                ptr_args[0] = offset_this;
+                inline for (0..Args.len) |i| {
+                    ptr_args[1 + i] = args[i];
+                }
+
+                if (self.pa.is_virtual) {
+                    const vtable_ptr: usize = offset_this.*;
+                    const func: *const Fn = @as(*const *const Fn, @ptrFromInt(vtable_ptr + self.un.vtable_offset)).*;
+                    return @call(.auto, func, ptr_args);
+                } else {
+                    return @call(.auto, self.un.func, ptr_args);
+                }
+            }
+        },
+        else => @compileError("Unsupported arch"),
     };
 }
 
