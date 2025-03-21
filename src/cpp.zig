@@ -8,6 +8,7 @@ const malloc_size =
         std.c._msize
     else {};
 
+/// std
 pub fn Vector(comptime T: type) type {
     return extern struct {
         start: [*]T,
@@ -75,7 +76,51 @@ pub fn SharedPtr(comptime T: type) type {
     return extern struct { ptr: *T, ref_count: *extern struct { vtable: *anyopaque, use_count: std.atomic.Value(i32), weak_count: std.atomic.Value(i32) } };
 }
 
+pub const FunctionManagerOp = enum(usize) { get_type_info, get_functor_ptr, clone_functor, destroy_functor };
 // x86_64 g++ only
+pub fn Function(R: type, Args: []const type) type {
+    var invoker_params: [1 + Args.len]std.builtin.Type.Fn.Param = undefined;
+    var functor_fn_params: [Args.len]std.builtin.Type.Fn.Param = undefined;
+    for (invoker_params[1..], functor_fn_params[0..], Args) |*p, *p2, a| {
+        p.* = .{ .type = *const a, .is_generic = false, .is_noalias = false };
+        p2.* = .{ .type = a, .is_generic = false, .is_noalias = false };
+    }
+    const FunctorFn: type = @Type(.{ .@"fn" = .{ .calling_convention = .c, .is_generic = false, .is_var_args = false, .return_type = R, .params = functor_fn_params[0..] } });
+    const s = struct {
+        const Functor = extern union { object: ?*anyopaque, fn_ptr: *const FunctorFn, method_ptr: MethodPtr(R, Args) };
+    };
+
+    invoker_params[0] = .{ .type = *const s.Functor, .is_generic = false, .is_noalias = false };
+    const Invoker = @Type(.{ .@"fn" = .{ .calling_convention = .c, .is_generic = false, .is_var_args = false, .return_type = R, .params = invoker_params[0..] } });
+
+    return extern struct {
+        pub const Functor = s.Functor;
+        functor: Functor = .{ .object = null },
+        mananger: *const fn (a: *Functor, b: *const Functor, op: FunctionManagerOp) callconv(.c) bool = &def_manager,
+        invoker: *const Invoker,
+
+        fn def_manager(a: *Functor, b: *const Functor, op: FunctionManagerOp) callconv(.c) bool {
+            if (op == .clone_functor) {
+                a.* = b.*;
+            }
+            return true;
+        }
+
+        pub fn clone(self: @This()) @This() {
+            var a: Functor = undefined;
+            _ = self.mananger(&a, &self.functor, .clone_functor);
+            return .{ .functor = a, .manager = self.mananger, .invoker = self.invoker };
+        }
+
+        pub fn deinit(self: @This()) void {
+            _ = self.mananger(self.functor, self.functor, .destroy_functor);
+        }
+    };
+}
+
+/// Builtin
+
+// x86_64 only
 pub fn MethodPtr(R: type, Args: []const type) type {
     var params: [1 + Args.len]std.builtin.Type.Fn.Param = undefined;
     params[0] = .{ .type = *anyopaque, .is_generic = false, .is_noalias = false };
@@ -95,7 +140,7 @@ pub fn MethodPtr(R: type, Args: []const type) type {
     return extern struct {
         un: extern union { is_virtual: bool, vtable_offset_plus_1: usize, func: *const Fn },
         this_offet: isize,
-        fn call(self: @This(), this: *anyopaque, args: ArgsTuple) R {
+        pub fn call(self: @This(), this: *anyopaque, args: ArgsTuple) R {
             var ptr_args: PtrArgsTuple = undefined;
             const offset_this: *align(1) usize = @ptrFromInt(@intFromPtr(this) +% @as(usize, @bitCast(self.this_offet)));
             ptr_args[0] = offset_this;
