@@ -100,7 +100,7 @@ pub fn MethodPtr(R: type, Args: []const type) type {
             const offset_this: *align(1) usize = @ptrFromInt(@intFromPtr(this) +% @as(usize, @bitCast(self.this_offet)));
             ptr_args[0] = offset_this;
             inline for (0..Args.len) |i| {
-                ptr_args[1 + i] = @field(args, std.fmt.comptimePrint("{d}", .{i}));
+                ptr_args[1 + i] = args[i];
             }
 
             if (self.un.is_virtual) {
