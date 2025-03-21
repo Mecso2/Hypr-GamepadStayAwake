@@ -72,6 +72,40 @@ pub const string = extern struct {
 pub fn shared_ptr(comptime T: type) type {
     return extern struct { ptr: *T, ref_count: *extern struct { vtable: *anyopaque, use_count: std.atomic.Value(i32), weak_count: std.atomic.Value(i32) } };
 }
+fn MethodPtr(R: type, Args: []const type) type {
+    var params: [1 + Args.len]std.builtin.Type.Fn.Param = undefined;
+    var fields: [1 + Args.len]std.builtin.Type.StructField = undefined;
+    params[0] = .{ .type = *anyopaque, .is_generic = false, .is_noalias = false };
+    fields[0] = .{ .name = "0", .type = *anyopaque, .default_value_ptr = null, .is_comptime = false, .alignment = @alignOf(*anyopaque) };
+    for (params[1..], fields[1..], Args, 1..) |*p, *f, a, i| {
+        p.* = .{ .type = a, .is_generic = false, .is_noalias = false };
+        f.* = .{ .name = std.fmt.comptimePrint("{d}", .{i}), .type = a, .default_value_ptr = null, .is_comptime = false, .alignment = @alignOf(a) };
+    }
+
+    const Nargs = @Type(std.builtin.Type{ .@"struct" = .{ .layout = .auto, .decls = &[_]std.builtin.Type.Declaration{}, .is_tuple = true, .fields = fields[0..] } });
+
+    const Fn: type = @Type(.{ .@"fn" = .{ .calling_convention = .c, .is_generic = false, .is_var_args = false, .return_type = R, .params = params[0..] } });
+    return extern struct {
+        un: extern union { is_virtual: bool, vtable_offset_plus_1: usize, func: *const Fn },
+        this_offet: isize,
+        fn call(self: @This(), this: *anyopaque, args: anytype) R {
+            var nargs: Nargs = undefined;
+            const nthis: *align(1) usize = @ptrFromInt(@intFromPtr(this) +% @as(usize, @bitCast(self.this_offet)));
+            nargs[0] = nthis;
+            inline for (0..Args.len) |i| {
+                nargs[1 + i] = @field(args, std.fmt.comptimePrint("{d}", .{i}));
+            }
+
+            if (self.un.is_virtual) {
+                const vtable_ptr: usize = nthis.*;
+                const func: *const Fn = @as(*const *const Fn, @ptrFromInt(vtable_ptr + self.un.vtable_offset_plus_1 - 1)).*;
+                return @call(.auto, func, nargs);
+            } else {
+                return @call(.auto, self.un.func, nargs);
+            }
+        }
+    };
+}
 
 extern fn __cxa_allocate_exception(size: usize) [*]u8;
 extern fn __cxa_throw(buf: [*]u8, typeinfo: *anyopaque) noreturn;
