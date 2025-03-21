@@ -76,7 +76,7 @@ pub fn SharedPtr(comptime T: type) type {
 }
 
 // x86_64 g++ only
-fn MethodPtr(R: type, Args: []const type) type {
+pub fn MethodPtr(R: type, Args: []const type) type {
     var params: [1 + Args.len]std.builtin.Type.Fn.Param = undefined;
     params[0] = .{ .type = *anyopaque, .is_generic = false, .is_noalias = false };
     var ptr_args_tuple_fields: [1 + Args.len]std.builtin.Type.StructField = undefined;
