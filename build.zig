@@ -13,9 +13,7 @@ pub fn build(b: *std.Build) void {
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
-    const optimize = b.standardOptimizeOption(.{.preferred_optimize_mode=.ReleaseSafe});
-
-
+    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSafe });
 
     const lib = b.addSharedLibrary(.{
         .name = "hypr-gamepadstayawake",
@@ -24,12 +22,12 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true
+        .link_libc = true,
     });
     lib.linkSystemLibrary("SDL3");
 
-    const HYPR_COMMIT_HASH=b.option([]const u8, "HYPR_COMMIT_HASH", "hyprland's git commit hash") orelse @panic("HYPR_COMMIT_HASH is missing");
-    const options=b.addOptions();
+    const HYPR_COMMIT_HASH = b.option([]const u8, "HYPR_COMMIT_HASH", "hyprland's git commit hash") orelse @panic("HYPR_COMMIT_HASH is missing");
+    const options = b.addOptions();
     options.addOption([]const u8, "HYPR_COMMIT_HASH", HYPR_COMMIT_HASH);
     lib.root_module.addOptions("config", options);
 
