@@ -4,10 +4,10 @@ const stdout = std.io.getStdOut().writer();
 const stderr = std.io.getStdErr().writer();
 const cpp = @import("cpp.zig");
 const hyprland = @import("hyprland.zig");
-const c = @cImport(@cInclude("SDL2/SDL.h"));
+const c = @cImport(@cInclude("SDL3/SDL.h"));
 
 var PHANDLE: hyprland.HANDLE = null;
-var joys = std.AutoHashMap(i32, *c.SDL_Joystick).init(std.heap.c_allocator);
+var joys: std.AutoHashMap(c.SDL_JoystickID, *c.SDL_Joystick) = .init(std.heap.c_allocator);
 var subs: hyprland.SP(hyprland.HOOK_CALLBACK_FN) = undefined;
 var idle: *hyprland.CIdleNotifyProtocol = undefined;
 
@@ -29,7 +29,7 @@ export fn pluginInit(ret: *hyprland.PLUGIN_DESCRIPTION_INFO, handle: hyprland.HA
         ret.name.constrFromSlice("Hypr-GamepadStayAwake (VERSION MISMATCH)");
         return ret;
     }
-    if (c.SDL_Init(c.SDL_INIT_JOYSTICK) != 0) {
+    if (!c.SDL_Init(c.SDL_INIT_JOYSTICK)) {
         notify(handle, .{ .r = 1, .g = 1, .b = 0, .a = 1 }, 8000, "Hypr-GamepadStayAwake failed to initailze SDL: `{s}`", .{c.SDL_GetError()}) catch @panic("OOM");
 
         ret.name.constrFromSlice("Hypr-GamepadStayAwake (Couldn't init SDL)");
@@ -57,7 +57,7 @@ export fn pluginExit() void {
     subs.deinit();
     var iter = joys.valueIterator();
     while (iter.next()) |v| {
-        c.SDL_JoystickClose(v.*);
+        c.SDL_CloseJoystick(v.*);
     }
     joys.deinit();
     c.SDL_Quit();
@@ -65,12 +65,12 @@ export fn pluginExit() void {
 
 fn tick(_: *const hyprland.HOOK_CALLBACK_FN.Functor, _: *const ?*anyopaque, _: *const hyprland.SCallbackInfo, _: *const ?*anyopaque) callconv(.c) void {
     var event: c.SDL_Event = undefined;
-    while (c.SDL_PollEvent(&event) != 0) {
-        if (event.type == c.SDL_JOYDEVICEREMOVED) {
-            c.SDL_JoystickClose(joys.fetchRemove(event.jdevice.which).?.value);
-        } else if (event.type == c.SDL_JOYDEVICEADDED) {
-            joys.put(event.jdevice.which, c.SDL_JoystickOpen(event.jdevice.which).?) catch @panic("map");
-        } else if (event.type == c.SDL_JOYBUTTONUP or event.type == c.SDL_JOYBUTTONDOWN) {
+    while (c.SDL_PollEvent(&event)) {
+        if (event.type == c.SDL_EVENT_JOYSTICK_REMOVED) {
+            c.SDL_CloseJoystick(joys.fetchRemove(event.jdevice.which).?.value);
+        } else if (event.type == c.SDL_EVENT_JOYSTICK_ADDED) {
+            joys.put(event.jdevice.which, c.SDL_OpenJoystick(event.jdevice.which).?) catch @panic("map");
+        } else if (event.type == c.SDL_EVENT_JOYSTICK_BUTTON_UP or event.type == c.SDL_EVENT_JOYSTICK_BUTTON_DOWN) {
             idle.onActivity();
         }
     }

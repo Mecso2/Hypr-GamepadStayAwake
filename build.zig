@@ -26,8 +26,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .link_libc = true
     });
-    lib.linkSystemLibrary("SDL2");
-
+    lib.linkSystemLibrary("SDL3");
 
     const HYPR_COMMIT_HASH=b.option([]const u8, "HYPR_COMMIT_HASH", "hyprland's git commit hash") orelse @panic("HYPR_COMMIT_HASH is missing");
     const options=b.addOptions();

@@ -2,7 +2,7 @@
 A Hyprland plugin that resets the ext-idle-notify protocol's timer when a button is pressed on a gamepad, so swayidle won't lock your screen when you're playin Rocket League.
 
 ## Requirements
-- SDL2
+- SDL3
 - zig (build only)
 ## Building
 ### Building and installing using hyprpm
