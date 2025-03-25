@@ -8,7 +8,7 @@ const c = @cImport(@cInclude("SDL2/SDL.h"));
 
 var PHANDLE: hyprland.HANDLE = null;
 var joys = std.AutoHashMap(i32, *c.SDL_Joystick).init(std.heap.c_allocator);
-var hook: ?*hyprland.CFunctionHook = null;
+var subs: hyprland.SP(hyprland.HOOK_CALLBACK_FN) = undefined;
 var idle: *hyprland.CIdleNotifyProtocol = undefined;
 
 export fn pluginAPIVersion(ret: *cpp.String) ?*cpp.String {
@@ -36,11 +36,17 @@ export fn pluginInit(ret: *hyprland.PLUGIN_DESCRIPTION_INFO, handle: hyprland.HA
         return ret;
     }
 
-    hook = hyprland.createFunctionHook(handle, @extern(*const anyopaque, .{ .name = "_ZN14CConfigManager4tickEv" }), &tick).?;
-    if (!hook.?.hook()) {
+    var event_name: cpp.String = undefined;
+    event_name.constrFromSlice("tick");
+    defer event_name.deinit();
+    var f: hyprland.HOOK_CALLBACK_FN = .{ .invoker = &tick };
+    defer f.deinit();
+
+    subs = hyprland.registerCallbackDynamic(handle, &event_name, &f);
+    if (!subs.dataNonNull()) {
         notify(handle, .{ .r = 1, .g = 1, .b = 0, .a = 1 }, 8000, "Hypr-GamepadStayAwake failed to hook tick event", .{}) catch @panic("OOM");
 
-        ret.name.constrFromSlice("Hypr-GamepadStayAwake (Failed to create hook)");
+        ret.name.constrFromSlice("Hypr-GamepadStayAwake (Failed to register callback)");
         return ret;
     }
 
@@ -48,9 +54,7 @@ export fn pluginInit(ret: *hyprland.PLUGIN_DESCRIPTION_INFO, handle: hyprland.HA
     return ret;
 }
 export fn pluginExit() void {
-    if (hook) |h| {
-        _ = h.unhook();
-    }
+    subs.deinit();
     var iter = joys.valueIterator();
     while (iter.next()) |v| {
         c.SDL_JoystickClose(v.*);
@@ -59,7 +63,7 @@ export fn pluginExit() void {
     c.SDL_Quit();
 }
 
-fn tick(self: ?*anyopaque) callconv(.C) void {
+fn tick(_: *const hyprland.HOOK_CALLBACK_FN.Functor, _: *const ?*anyopaque, _: *const hyprland.SCallbackInfo, _: *const ?*anyopaque) callconv(.c) void {
     var event: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&event) != 0) {
         if (event.type == c.SDL_JOYDEVICEREMOVED) {
@@ -70,8 +74,6 @@ fn tick(self: ?*anyopaque) callconv(.C) void {
             idle.onActivity();
         }
     }
-
-    @as(*const fn (?*anyopaque) void, @ptrCast(hook.?.m_pOriginal))(self);
 }
 
 inline fn notify(handle: hyprland.HANDLE, color: hyprland.CColor, timeout: f32, fmt: []const u8, args: anytype) !void {

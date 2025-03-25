@@ -16,6 +16,12 @@ pub extern fn findFunctionsByName(handle: HANDLE, *const cpp.String) cpp.Vector(
 pub extern fn createFunctionHook(handle: HANDLE, src: *const anyopaque, dst: *const anyopaque) ?*CFunctionHook;
 pub extern fn removeFunctionHook(handle: HANDLE, hook: *CFunctionHook) bool;
 
+pub const SCallbackInfo = extern struct {
+    cancelled: bool = false, // on cancellable events, will cancel the event.
+};
+pub const HOOK_CALLBACK_FN = cpp.Function(void, &.{ ?*anyopaque, SCallbackInfo, ?*anyopaque });
+pub extern fn registerCallbackDynamic(handle: HANDLE, event: *const cpp.String, func: *HOOK_CALLBACK_FN) SP(HOOK_CALLBACK_FN);
+
 pub const CFunctionHook = extern struct {
     pub inline fn hook(self: *@This()) bool {
         return @extern(*const fn (*@This()) callconv(.C) bool, .{ .name = "_ZN13CFunctionHook4hookEv" })(self);
