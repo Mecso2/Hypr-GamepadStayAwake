@@ -1,6 +1,6 @@
 [Hypr-GamepadStayAwake]
 description = "A plugin that resets the idle timer on controller button events"
-version = "1.1"
+version = "1.2"
 authors = ["Mecso"]
 output = "zig-out/lib/libhypr-gamepadstayawake.so"
 build = [

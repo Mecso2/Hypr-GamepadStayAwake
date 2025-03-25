@@ -21,7 +21,7 @@ export fn pluginInit(ret: *hyprland.PLUGIN_DESCRIPTION_INFO, handle: hyprland.HA
     PHANDLE = handle;
     ret.description.constrFromSlice("A plugin that resets the idle timer on controller button events");
     ret.author.constrFromSlice("Mecso");
-    ret.version.constrFromSlice("1.1");
+    ret.version.constrFromSlice("1.2");
 
     if (!std.mem.eql(u8, std.mem.span(hyprland.getApiHash()), hyprland.GIT_COMMIT_HASH)) {
         notify(handle, .{ .r = 1, .g = 1, .b = 0, .a = 1 }, 8000, "Hypr-GamepadStayAwake version mismatch, expected Hyprland with commit hash: `{s}`, but got one with `{s}`", .{ hyprland.GIT_COMMIT_HASH, hyprland.getApiHash() }) catch @panic("OOM");
