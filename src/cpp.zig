@@ -96,24 +96,24 @@ pub fn Function(R: type, Args: []const type) type {
     return extern struct {
         pub const Functor = s.Functor;
         functor: Functor = .{ .object = null },
-        mananger: *const fn (a: *Functor, b: *const Functor, op: FunctionManagerOp) callconv(.c) bool = &def_manager,
+        manager: *const fn (a: *Functor, b: *const Functor, op: FunctionManagerOp) callconv(.c) bool = &def_manager,
         invoker: *const Invoker,
 
         fn def_manager(a: *Functor, b: *const Functor, op: FunctionManagerOp) callconv(.c) bool {
             if (op == .clone_functor) {
                 a.* = b.*;
             }
-            return true;
+            return false;
         }
 
         pub fn clone(self: @This()) @This() {
             var a: Functor = undefined;
-            _ = self.mananger(&a, &self.functor, .clone_functor);
-            return .{ .functor = a, .manager = self.mananger, .invoker = self.invoker };
+            _ = self.manager(&a, &self.functor, .clone_functor);
+            return .{ .functor = a, .manager = self.manager, .invoker = self.invoker };
         }
 
-        pub fn deinit(self: @This()) void {
-            _ = self.mananger(self.functor, self.functor, .destroy_functor);
+        pub fn deinit(self: *@This()) void {
+            _ = self.manager(&self.functor, &self.functor, .destroy_functor);
         }
     };
 }
