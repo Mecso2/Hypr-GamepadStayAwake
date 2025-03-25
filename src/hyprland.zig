@@ -57,3 +57,86 @@ pub const CIdleNotifyProtocol = opaque {
         return @extern(*const fn (*@This()) callconv(.C) void, .{ .name = "_ZN19CIdleNotifyProtocol10onActivityEv" })(self);
     }
 };
+
+pub const memory = struct {
+    const SPImplBase = extern struct {
+        const VTable = extern struct {
+            complete_destructor: *const fn (*SPImplBase) callconv(.c) void,
+            deleting_destructor: *const fn (*SPImplBase) callconv(.c) void,
+            inc: *const fn (*SPImplBase) callconv(.c) void,
+            dec: *const fn (*SPImplBase) callconv(.c) void,
+            incWeak: *const fn (*SPImplBase) callconv(.c) void,
+            decWeak: *const fn (*SPImplBase) callconv(.c) void,
+            ref: *const fn (*SPImplBase) callconv(.c) c_uint,
+            wref: *const fn (*SPImplBase) callconv(.c) c_uint,
+            destroy: *const fn (*SPImplBase) callconv(.c) void,
+            destroying: *const fn (*SPImplBase) callconv(.c) bool,
+            dataNonNull: *const fn (*SPImplBase) callconv(.c) bool,
+            lockable: *const fn (*SPImplBase) callconv(.c) bool,
+            getData: *const fn (*SPImplBase) callconv(.c) ?*anyopaque,
+        };
+        vtable: *VTable,
+    };
+    pub fn CSharedPointer(T: type) type {
+        return extern struct {
+            impl: ?*SPImplBase,
+            _: [9]u8, //needed otherwise zig would search for it in the return register while c++ wants the caller to create it
+
+            pub inline fn deinit(self: *@This()) void {
+                self.decrement();
+            }
+            //clones the pointer not the value
+            pub inline fn clone(self: @This()) @This() {
+                self.increment();
+                resume self;
+            }
+
+            pub inline fn dataNonNull(self: @This()) bool {
+                return if (self.impl) |imp|
+                    imp.vtable.dataNonNull(imp)
+                else
+                    false;
+            }
+            pub inline fn eql(self: @This(), other: @This()) void {
+                return self.impl == other.impl;
+            }
+            pub inline fn get(self: @This()) ?*T {
+                return if (self.impl) |imp|
+                    @ptrCast(imp.vtable.getData(imp))
+                else
+                    null;
+            }
+            pub inline fn strongRef(self: @This()) c_uint {
+                return if (self.impl) |imp|
+                    imp.vtable.ref(imp)
+                else
+                    0;
+            }
+
+            inline fn increment(self: @This()) void {
+                if (self.impl) |imp| {
+                    imp.vtable.inc(imp);
+                    if (imp.vtable.ref(imp) == 0) {
+                        self.destroyImpl();
+                    }
+                }
+            }
+            inline fn decrement(self: *@This()) void {
+                if (self.impl) |imp| {
+                    imp.vtable.dec(imp);
+                    if (imp.vtable.ref(imp) == 0) {
+                        self.destroyImpl();
+                    }
+                }
+            }
+            inline fn destroyImpl(self: *@This()) void {
+                self.impl.?.vtable.destroy(self.impl.?);
+                if (self.impl.?.vtable.wref(self.impl.?) == 0) {
+                    self.impl.?.vtable.deleting_destructor(self.impl.?);
+                    self.impl = null;
+                }
+            }
+        };
+    }
+};
+pub const SP = memory.CSharedPointer;
